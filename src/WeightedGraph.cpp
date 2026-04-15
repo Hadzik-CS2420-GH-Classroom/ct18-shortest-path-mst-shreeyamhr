@@ -6,6 +6,10 @@
 #include <iostream>
 #include <tuple>
 #include <limits>
+#include <queue>
+#include <vector>
+#include <functional>
+#include <unordered_set>
 
 // =============================================================================
 // 1. Constructor
@@ -35,6 +39,11 @@ void WeightedGraph::add_vertex(const std::string& vertex) {
 void WeightedGraph::add_edge(const std::string& from, const std::string& to, int weight) {
     // TODO: ensure both vertices exist, then push Edge{to, weight} into
     //       from's list AND Edge{from, weight} into to's list (undirected)
+    add_vertex(from);
+    add_vertex(to);
+
+    adj_list_[from].push_back({ to, weight });
+    adj_list_[to].push_back({ from, weight });
 }
 
 // =============================================================================
@@ -87,20 +96,49 @@ WeightedGraph::dijkstra(const std::string& source) const {
     //
     // 1. Declare dist (already done above)
     // 2. Initialize every vertex's dist to std::numeric_limits<int>::max()
+    for (const auto& [vertex, edges] : adj_list_) {
+        dist[vertex] = std::numeric_limits<int>::max();
+    }
+
     // 3. Guard: if (!has_vertex(source)) return dist;
+    if (!has_vertex(source)) return dist;
+
     // 4. Seed the source: dist[source] = 0;
+    dist[source] = 0;
+
     // 5. Type alias: using Pair = std::pair<int, std::string>;
+    using Pair = std::pair<int, std::string>;
+
     // 6. Min-heap declaration:
     //      std::priority_queue<Pair, std::vector<Pair>,
     //                          std::greater<Pair>> min_heap;
     //    (std::greater flips the default max-heap to a min-heap)
+    std::priority_queue<Pair, std::vector<Pair>, std::greater<Pair>> min_heap;
+
     // 7. Seed the min-heap: min_heap.push({0, source})
+    min_heap.push({ 0, source });
+
     // 8. Main loop — while (!min_heap.empty()):
-    //      pop (d, u) with min_heap.top() / min_heap.pop()
-    // 9. Stale-entry skip: if (d > dist[u]) continue;
-    // 10. Relax every edge in adj_list_.at(u): compute new_dist = dist[u]
-    //     + edge.weight; if new_dist < dist[edge.to], update dist[edge.to]
-    //     and min_heap.push({new_dist, edge.to})
+    while (!min_heap.empty()) {
+        //      pop (d, u) with min_heap.top() / min_heap.pop()
+        auto [d, u] = min_heap.top();
+        min_heap.pop();
+
+        // 9. Stale-entry skip: if (d > dist[u]) continue;
+        if (d > dist[u]) continue;
+
+        // 10. Relax every edge in adj_list_.at(u): compute new_dist = dist[u]
+        //     + edge.weight; if new_dist < dist[edge.to], update dist[edge.to]
+        //     and min_heap.push({new_dist, edge.to})
+        for (const auto& edge : adj_list_.at(u)) {
+            int new_dist = dist[u] + edge.weight;
+            if (new_dist < dist[edge.to]) {
+                dist[edge.to] = new_dist;
+                min_heap.push({ new_dist, edge.to });
+            }
+        }
+    }
+
     return dist;
 }
 
@@ -130,7 +168,7 @@ WeightedGraph::prims_mst(const std::string& start) const {
     std::vector<std::tuple<std::string, std::string, int>> mst_edges;
     int total_weight = 0;
 
-    if (!has_vertex(start)) return {mst_edges, total_weight};
+    if (!has_vertex(start)) return { mst_edges, total_weight };
 
     // 1. Start the MST with 'start'
     std::unordered_set<std::string> in_mst;
@@ -144,7 +182,7 @@ WeightedGraph::prims_mst(const std::string& start) const {
 
     // 4. Seed the frontier with every edge leaving 'start'
     for (const auto& edge : adj_list_.at(start)) {
-        min_heap.push({edge.weight, start, edge.to});
+        min_heap.push({ edge.weight, start, edge.to });
     }
 
     // 5. Cache V so we can stop once the MST covers every vertex
@@ -159,19 +197,19 @@ WeightedGraph::prims_mst(const std::string& start) const {
         if (in_mst.count(to)) continue;
 
         // 8. Accept the edge (record + total + mark in MST)
-        mst_edges.push_back({from, to, w});
+        mst_edges.push_back({ from, to, w });
         total_weight += w;
         in_mst.insert(to);
 
         // 9. Grow the frontier with every crossing edge from 'to'
         for (const auto& edge : adj_list_.at(to)) {
             if (!in_mst.count(edge.to)) {
-                min_heap.push({edge.weight, to, edge.to});
+                min_heap.push({ edge.weight, to, edge.to });
             }
         }
     }
 
-    return {mst_edges, total_weight};
+    return { mst_edges, total_weight };
 }
 
 // =============================================================================
